@@ -2,7 +2,7 @@ import { t } from './locale.mjs'
 import React, { useRef, useState, useEffect } from 'react'
 import { annotationTranscript } from './transcript.mjs'
 
-function MessageAnnotations({ review, renderMessageImages }) {
+function MessageAnnotations({ review, renderFactorySlot, loadImage }) {
   const trigger = useRef(null),
     popup = useRef(null),
     [anchor, setAnchor] = useState({}),
@@ -106,10 +106,19 @@ function MessageAnnotations({ review, renderMessageImages }) {
                 <p>{note.comment}</p>
                 <div className="pr-message-image">
                   {review.images[i]?.attachment ? (
-                    renderMessageImages({
-                      images: [{ attachment: review.images[i].attachment }],
-                      align: 'start',
-                      compact: false,
+                    renderFactorySlot('conversation.chat.user.content', {
+                      content: {
+                        text: '',
+                        attachments: [
+                          {
+                            type: 'image',
+                            image: { attachment: review.images[i].attachment },
+                          },
+                        ],
+                        extraBlocks: [],
+                      },
+                      facts: {},
+                      loadImage,
                     })
                   ) : review.images[i]?.data ? (
                     <img
@@ -156,24 +165,31 @@ export function annotationMessageRenderer(Native) {
   return function AnnotationMessage(props) {
     const review = annotationTranscript(props.node.data.content)
     if (!review) return <Native {...props} />
+    const summary =
+      `${review.notes.length} ${t('annotations.71')}\n` +
+      review.notes.map((note, i) => `${i + 1}. ${note.comment}`).join('\n')
     const node = {
       ...props.node,
-      data: { ...props.node.data, content: review.content },
+      data: {
+        ...props.node.data,
+        content: [
+          {
+            type: 'text',
+            text: [review.userText, summary].filter(Boolean).join('\n\n'),
+          },
+          ...review.content.filter((block) => block.type !== 'text'),
+        ],
+      },
     }
     return (
-      <Native
-        {...props}
-        node={node}
-        messageFooter={
-          <>
-            {props.messageFooter}
-            <MessageAnnotations
-              review={review}
-              renderMessageImages={props.renderMessageImages}
-            />
-          </>
-        }
-      />
+      <div className="pr-annotated-message">
+        <Native {...props} node={node} />
+        <MessageAnnotations
+          review={review}
+          renderFactorySlot={props.renderFactorySlot}
+          loadImage={props.loadImage}
+        />
+      </div>
     )
   }
 }

@@ -183,6 +183,6 @@ export function apply(ctx, config = {}) {
     }),
   )
   ctx.effect(() => () => {
-    void engine.close()
+    return engine.close()
   })
 }

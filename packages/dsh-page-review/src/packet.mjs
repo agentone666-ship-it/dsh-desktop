@@ -95,7 +95,15 @@ export async function deliverPacket(session, packet, attempt = {}, extra = {}) {
     undefined,
     attempt.submission.requestId,
   )
-  if (!result?.ok || !result.value?.accepted)
-    throw Error(result?.error?.message || '会话未确认接收，批注和截图已保留')
+  if (!result?.ok || !result.value?.accepted) {
+    const error = Error(
+      result?.error?.message || '会话未确认接收，批注和截图已保留',
+    )
+    // An explicit negative admission can be rebuilt after the user repairs an
+    // attachment. A thrown transport error has no such proof and keeps its id.
+    error.admissionRejected =
+      result?.ok === false || result?.value?.accepted === false
+    throw error
+  }
   return result
 }

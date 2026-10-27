@@ -86,7 +86,8 @@ test('失败重试沿用同一个 requestId，明确回执后才成功', async (
         p,
         {},
       ),
-    /未确认接收/,
+    (error) =>
+      error.admissionRejected === true && /未确认接收/.test(error.message),
   )
 })
 test('发送中的编辑不会被迟到的回执清空', () => {

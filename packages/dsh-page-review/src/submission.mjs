@@ -40,6 +40,7 @@ export function createDirectSender({
           onSuccess(state)
           return state
         } catch (error) {
+          if (error.admissionRejected && !pending?.accepted) pending = null
           onError(error)
           throw error
         } finally {

@@ -1,20 +1,49 @@
 export function captureComposer(input) {
-  if (input.claim || input.occurrences?.length)
-    throw Error('当前输入含命令或引用，请先完成该输入，再预览发送注释')
+  if (input.claim) throw Error('当前输入含命令，请先完成该输入，再发送注释')
   if (['adjudicating', 'submitting'].includes(input.phase))
     throw Error('当前输入正在提交，请稍后重试')
   return {
     text: input.draft || '',
     draftRev: input.draftRev,
     attachmentIds: [...(input.attachmentIds || [])],
+    references: (input.occurrences || []).map((item) => ({ ...item })),
   }
+}
+
+// The native source owns reference serialization (including uploaded files).
+// Never turn a chip's display label into model context or drop its identity.
+export async function serializeComposerReferences(capture, controller, signal) {
+  let cursor = 0,
+    modelText = ''
+  for (const reference of capture.references || []) {
+    const { offset, length, source, ref, clipboardText, invalid } = reference
+    if (
+      invalid ||
+      !Number.isSafeInteger(offset) ||
+      !Number.isSafeInteger(length) ||
+      offset < cursor ||
+      length < 1 ||
+      offset + length > capture.text.length ||
+      capture.text.slice(offset, offset + length) !== clipboardText ||
+      !controller?.serializeReference
+    )
+      throw Error('输入框引用不可用，注释与草稿已保留')
+    signal?.throwIfAborted()
+    const text = await controller.serializeReference(source, ref, signal)
+    signal?.throwIfAborted()
+    if (typeof text !== 'string')
+      throw Error('输入框引用准备失败，注释与草稿已保留')
+    modelText += capture.text.slice(cursor, offset) + text
+    cursor = offset + length
+  }
+  return { ...capture, modelText: modelText + capture.text.slice(cursor) }
 }
 
 export function withComposerText(packet, capture) {
   return {
     ...packet,
     text: capture?.text?.trim()
-      ? `用户补充要求：\n${capture.text}\n\n${packet.text}`
+      ? `用户补充要求：\n${capture.modelText ?? capture.text}\n\n${packet.text}`
       : packet.text,
     ...(packet.displayText === undefined
       ? {}

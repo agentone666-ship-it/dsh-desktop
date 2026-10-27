@@ -2,11 +2,122 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   captureComposer,
+  serializeComposerReferences,
   withComposerText,
   composerAttachments,
   retireComposer,
 } from '../src/composer.mjs'
 import { deliverPacket } from '../src/packet.mjs'
+
+test('reference chips use native owner codecs and retain the readable draft and revision', async () => {
+  const state = {
+    draft: 'QA: report.txt + thread',
+    draftRev: 7,
+    attachmentIds: ['image'],
+    occurrences: [
+      {
+        source: 'file',
+        ref: 'receipt-1',
+        offset: 4,
+        length: 10,
+        clipboardText: 'report.txt',
+      },
+      {
+        source: 'session',
+        ref: 'session-2',
+        offset: 17,
+        length: 6,
+        clipboardText: 'thread',
+      },
+    ],
+  }
+  const captured = captureComposer(state)
+  state.occurrences[0].ref = 'changed-later'
+  const calls = [],
+    signal = new AbortController().signal
+  const serialized = await serializeComposerReferences(
+    captured,
+    {
+      async serializeReference(source, ref, passedSignal) {
+        calls.push([source, ref])
+        assert.equal(passedSignal, signal)
+        return source === 'file'
+          ? 'authorized-file-context'
+          : 'authorized-session-context'
+      },
+    },
+    signal,
+  )
+  assert.deepEqual(calls, [
+    ['file', 'receipt-1'],
+    ['session', 'session-2'],
+  ])
+  const packet = withComposerText(
+    { text: 'annotation packet', displayText: 'annotation summary' },
+    serialized,
+  )
+  assert.match(
+    packet.text,
+    /QA: authorized-file-context \+ authorized-session-context/,
+  )
+  assert.match(packet.displayText, /QA: report.txt \+ thread/)
+  assert.equal(serialized.text, 'QA: report.txt + thread')
+  assert.equal(serialized.draftRev, 7)
+})
+
+test('invalid, overlapping or unavailable references fail before admission without consuming the draft', async () => {
+  const capture = {
+    text: 'file',
+    draftRev: 1,
+    references: [
+      {
+        source: 'file',
+        ref: 'id',
+        offset: 0,
+        length: 4,
+        clipboardText: 'file',
+      },
+    ],
+  }
+  await assert.rejects(serializeComposerReferences(capture, null), /引用不可用/)
+  await assert.rejects(
+    serializeComposerReferences(
+      { ...capture, references: [{ ...capture.references[0], invalid: true }] },
+      { serializeReference: async () => 'data' },
+    ),
+    /引用不可用/,
+  )
+  await assert.rejects(
+    serializeComposerReferences(
+      {
+        ...capture,
+        references: [...capture.references, ...capture.references],
+      },
+      { serializeReference: async () => 'data' },
+    ),
+    /引用不可用/,
+  )
+  await assert.rejects(
+    serializeComposerReferences(capture, {
+      serializeReference: async () => {
+        throw Error('owner unavailable')
+      },
+    }),
+    /owner unavailable/,
+  )
+  const abort = new AbortController()
+  abort.abort()
+  await assert.rejects(
+    serializeComposerReferences(
+      capture,
+      { serializeReference: async () => 'data' },
+      abort.signal,
+    ),
+    { name: 'AbortError' },
+  )
+  assert.equal(capture.text, 'file')
+  assert.equal(capture.draftRev, 1)
+})
 
 test('注释与输入内容绑定为同一份预览，保留附件顺序', () => {
   const input = {
@@ -25,7 +136,7 @@ test('注释与输入内容绑定为同一份预览，保留附件顺序', () =>
     /让按钮更醒目[\s\S]*元素定位与注释/,
   )
   assert.equal(packet.text, '元素定位与注释')
-  assert.throws(() => captureComposer({ ...input, claim: {} }), /命令或引用/)
+  assert.throws(() => captureComposer({ ...input, claim: {} }), /命令/)
   assert.throws(
     () => captureComposer({ ...input, phase: 'submitting' }),
     /提交/,

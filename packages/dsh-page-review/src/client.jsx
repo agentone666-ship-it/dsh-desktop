@@ -8,6 +8,7 @@ import { holdToBrowse, presentTemporaryBrowsing } from './interaction.mjs'
 import { createFramePump } from './frames.mjs'
 import {
   captureComposer,
+  serializeComposerReferences,
   withComposerText,
   composerAttachments,
   retireComposer,
@@ -26,11 +27,16 @@ export const inject = [
   'sidebarRight',
   'sidebarRightTabs',
   'conversation',
+  'inputTriggers',
   'resources',
   'locale',
 ]
 const stores = new Map()
-let sessionsService, conversationService, sidebarService, openBrowserLink
+let sessionsService,
+  conversationService,
+  sidebarService,
+  openBrowserLink,
+  inputTriggersService
 const tabBridges = new Map()
 function inputShellFor(sid) {
   const scope =
@@ -89,7 +95,16 @@ function senderFor(sid) {
     model.sender = createDirectSender({
       prepare: async () => {
         const shell = inputShellFor(sid),
-          capture = captureComposer(shell.snapshot)
+          initial = captureComposer(shell.snapshot),
+          scope =
+            sessionsService.binding(sid)?.ctx || sessionsService.scope?.(sid),
+          capture = await serializeComposerReferences(
+            initial,
+            initial.references.length
+              ? inputTriggersService.sessionOf(scope)
+              : null,
+            AbortSignal.timeout(35000),
+          )
         const prepared = await api('/prepare', {
           session: sid,
           ids: model.get().notes.map((n) => n.id),
@@ -1845,6 +1860,7 @@ export function apply(ctx) {
     sidebar = ctx.get('sidebarRight')
   sessionsService = ctx.get('sessions')
   conversationService = ctx.get('conversation')
+  inputTriggersService = ctx.get('inputTriggers')
   sidebarService = sidebar
   openBrowserLink = createLinkOpener({
     load: async (sid) => {
@@ -1959,7 +1975,6 @@ export function apply(ctx) {
     { key: TAB + '-links' },
   )
 
-  const open = () => sidebar.openTab(KIND)
   const ComposerNotes = (props) => (
     <ComposerAnnotations
       {...props}
@@ -2013,13 +2028,4 @@ export function apply(ctx) {
         )
       }),
     )
-
-  const key = (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'b') {
-      e.preventDefault()
-      open()
-    }
-  }
-  window.addEventListener('keydown', key)
-  ctx.effect(() => () => window.removeEventListener('keydown', key))
 }

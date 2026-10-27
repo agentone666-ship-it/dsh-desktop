@@ -159,3 +159,26 @@ test('准备附件失败可重新准备，不交付半份消息，也不留在�
   await sender.send()
   assert.deepEqual([prepared, delivered, ended], [2, 1, 2])
 })
+
+test('explicit admission rejection permits repaired attachments; transport failures retain the attempt', async () => {
+  let prepared = 0,
+    calls = 0,
+    received
+  const sender = createDirectSender({
+    prepare: async () => ({ version: ++prepared }),
+    deliver: async (packet) => {
+      calls++
+      if (calls === 1)
+        throw Object.assign(Error('Invalid image bytes'), {
+          admissionRejected: true,
+        })
+      received = packet.version
+    },
+    retire() {},
+    ack: async () => ({}),
+  })
+  await assert.rejects(sender.send(), /Invalid image/)
+  await sender.send()
+  assert.equal(prepared, 2)
+  assert.equal(received, 2)
+})

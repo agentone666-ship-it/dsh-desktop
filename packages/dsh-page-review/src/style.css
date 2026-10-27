@@ -1133,6 +1133,11 @@
 .pr-message-annotations {
   margin: 6px 0 0;
 }
+.pr-annotated-message > .pr-message-annotations {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 12px;
+}
 .pr-message-annotations:first-child {
   margin-top: 0;
 }

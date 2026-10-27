@@ -85,7 +85,11 @@ test('发送失败保留原请求及草稿，重试不丢失发送期间新增�
     acked = 0,
     pruned = []
   const snapshot = { text: '原要求', draftRev: 1, attachmentIds: ['image-a'] },
-    current = { draft: '新增要求', draftRev: 2 }
+    current = {
+      draft: '新增要求',
+      draftRev: 2,
+      attachmentIds: ['image-a', 'image-b'],
+    }
   const actions = {
     setDraft: () => assert.fail('不能清空新草稿'),
     pruneAttachments: (ids) => pruned.push(ids),
@@ -113,7 +117,7 @@ test('发送失败保留原请求及草稿，重试不丢失发送期间新增�
   assert.equal(prepared, 1)
   assert.equal(attempts, 2)
   assert.equal(acked, 1)
-  assert.deepEqual(pruned, [['image-a']])
+  assert.deepEqual(pruned, [['image-b']])
 })
 
 test('模型已接收而本地归档失败时，只重试回执，不再次发送', async () => {

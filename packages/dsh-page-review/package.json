@@ -1,6 +1,6 @@
 {
   "name": "dsh-page-review",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "Optional browser annotations with screenshots, element context and chat handoff.",
   "type": "module",

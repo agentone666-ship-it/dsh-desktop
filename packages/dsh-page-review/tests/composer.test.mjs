@@ -145,16 +145,29 @@ test('注释与输入内容绑定为同一份预览，保留附件顺序', () =>
 test('发送回执只清理同版本草稿，发送期间新增文字与附件保留', () => {
   const snapshot = { text: '旧文字', draftRev: 1, attachmentIds: ['old'] }
   let cleared = 0,
-    removed
+    attachmentIds = ['old', 'new']
   const actions = {
     setDraft: () => cleared++,
-    pruneAttachments: (ids) => (removed = ids),
+    // Model the native keep-only contract, so reversing it loses the new file.
+    pruneAttachments: (available) => {
+      attachmentIds = attachmentIds.filter((id) => available.includes(id))
+    },
   }
-  retireComposer(snapshot, { draft: '新文字', draftRev: 2 }, actions)
+  retireComposer(
+    snapshot,
+    { draft: '新文字', draftRev: 2, attachmentIds },
+    actions,
+  )
   assert.equal(cleared, 0)
-  assert.deepEqual(removed, ['old'])
-  retireComposer(snapshot, { draft: '旧文字', draftRev: 1 }, actions)
+  assert.deepEqual(attachmentIds, ['new'])
+  attachmentIds = ['old']
+  retireComposer(
+    snapshot,
+    { draft: '旧文字', draftRev: 1, attachmentIds },
+    actions,
+  )
   assert.equal(cleared, 1)
+  assert.deepEqual(attachmentIds, [])
 })
 test('原有图片和文件通过宿主附件序列化，不会在发送注释时丢失', async () => {
   const originals = [

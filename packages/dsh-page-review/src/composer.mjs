@@ -101,5 +101,10 @@ export async function composerAttachments(
 export function retireComposer(capture, current, actions) {
   if (capture.draftRev === current.draftRev && capture.text === current.draft)
     actions.setDraft('')
-  actions.pruneAttachments(capture.attachmentIds)
+  // The host's prune argument is an allow-list, not a list to remove.
+  // Retire only this admission's ids; preserve attachments added in flight.
+  const submitted = new Set(capture.attachmentIds)
+  actions.pruneAttachments(
+    (current.attachmentIds || []).filter((id) => !submitted.has(id)),
+  )
 }

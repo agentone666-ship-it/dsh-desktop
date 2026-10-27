@@ -41,7 +41,7 @@ The installer changes only this package's `link:` dependency, bundle selection a
 
 ## Compatibility seam and review boundary
 
-The incoming implementation was exercised in Desktop 0.12.0 / Harness 0.2.0-rc.2. Version 0.4.1 targets the repository's pinned Harness 0.2.1-rc.2. See the current-main validation record in [the validation record](../../docs/browser-annotations-validation.md) for observed desktop behavior and remaining checks; validation of the incoming prototype is not a substitute for that record.
+The incoming implementation was exercised in Desktop 0.12.0 / Harness 0.2.0-rc.2. Version 0.4.2 targets the repository's pinned Harness 0.2.1-rc.2. See the current-main validation record in [the validation record](../../docs/browser-annotations-validation.md) for observed desktop behavior and validation limits; validation of the incoming prototype is not a substitute for that record.
 
 The only host patch addition is `data-dsh-composer-primary="send" | "stop"` on the existing primary button. It changes no slot, handler, permission or default rendering. `src/composer-compat.mjs` observes that marker and editor availability, rather than translated labels or generated class names. With pending annotations, the plugin presents its submit control at the send seat; while Stop is primary, its action stays visible and annotation submission is inline. Without the marker, submission is disabled. Native Enter interception is limited to an editable composer with pending annotations, plain input phase and available submission. This adapter is intentionally documented coupling, pending a native submission-extension API; remove it and the marker patch when that API exists.
 
